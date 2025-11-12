@@ -3,3 +3,4 @@ pandas>=2.2
 openpyxl>=3.1
 # Hvis du vil støtte gamle .xls-filer:
 xlrd==1.2.0
+xlsxwriter>=3.2
