@@ -86,5 +86,7 @@ if uploaded_file:
         file_name="fraksjonsoversikt.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
+        # --- Personvern ---
+    st.caption("Personvern: Opplastede filer behandles i minnet i din økt og lagres ikke.")
 else:
     st.info("Last opp en Excel-fil for å starte.")
