@@ -36,7 +36,7 @@ if uploaded_files:
     for uf in uploaded_files:
         try:
             tmp = pd.read_excel(uf, engine="openpyxl")
-            required_cols = ["Betegnelse", "Materialkorttekst", "Målkvantum", "KE.1"]
+            required_cols = ["Betegnelse", "Materialkorttekst", "Målkvantum", "KE.1", "Delsum 3"]
             missing = [c for c in required_cols if c not in tmp.columns]
             if missing:
                 feil_filer.append(f"{uf.name} (mangler kolonner: {missing})")
@@ -62,7 +62,7 @@ if uploaded_files:
     # Slå sammen alle gyldige filer
     df = pd.concat(dfs, ignore_index=True)
 
-    required_cols = ["Betegnelse", "Materialkorttekst", "Målkvantum", "KE.1"]
+    required_cols = ["Betegnelse", "Materialkorttekst", "Målkvantum", "KE.1", "Delsum 3"]
     missing = [c for c in required_cols if c not in df.columns]
     if missing:
         st.error(f"Mangler kolonner i samlet datasett: {missing}")
@@ -79,6 +79,7 @@ if uploaded_files:
     # Rens tall + enhet
     # Viktig: ikke fillna(0) her – vi vil beholde "ingen verdi" som NaN
     df["Målkvantum"] = pd.to_numeric(df["Målkvantum"], errors="coerce")
+    df["Delsum 3"] = pd.to_numeric(df["Delsum 3"], errors="coerce")
     df["KE.1"] = df["KE.1"].map(clean_unit)
     df = df[df["KE.1"].notna()].copy()
 
@@ -92,7 +93,7 @@ if uploaded_files:
         u for u in units_found if u != "KG"
     ]
 
-    # Pivot 1: summerte verdier
+    # Pivot 1: summerte mengder per fraksjon/enhet
     pivot_vals = df.pivot_table(
         index="Fraksjon",
         columns="KE.1",
@@ -124,6 +125,13 @@ if uploaded_files:
     # Hvis en fraksjon/enhet bare hadde tomme verdier → sett til NaN (for blank visning)
     pivot = pivot_vals.where(pivot_has, pd.NA)
 
+    # ---- PRIS: summer Delsum 3 per fraksjon ----
+    price_pivot = df.pivot_table(
+        index="Fraksjon",
+        values="Delsum 3",
+        aggfunc="sum",
+    )
+
     # SUM-rad (summerer per enhet, tomme behandles som 0 i summen)
     sum_row = pivot.fillna(0).sum(axis=0).to_frame().T
     sum_row.index = ["SUM"]
@@ -144,6 +152,13 @@ if uploaded_files:
         .index
     )
     result = pd.concat([data.loc[order], result.loc[["SUM"]]], axis=0)
+
+    # Legg til pris-kolonne "Delsum 3" i result
+    price_series = price_pivot["Delsum 3"] if isinstance(price_pivot, pd.DataFrame) else price_pivot
+    prices = price_series.reindex(result.index)  # fraksjoner
+    # SUM-rad for pris
+    prices.loc["SUM"] = price_series.sum()
+    result["Delsum 3"] = prices
 
     # ---------- VISNINGSTABELL ----------
     disp = result.copy()
