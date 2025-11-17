@@ -10,12 +10,14 @@ uploaded_file = st.file_uploader("Last opp Excel-fil", type=["xlsx"])
 BAD_UNIT_LABELS = {"", "NAN", "NA", "NONE", "NULL", "TOTAL", "SUM"}
 
 def clean_unit(u):
+    """Rens enhet (KE.1) og fjern søppelverdier."""
     if pd.isna(u):  # ekte NaN
         return None
     s = str(u).strip().upper()
     return None if s in BAD_UNIT_LABELS else s
 
 def fmt_number(val):
+    """Formater tall for visning i tabell (blank hvis NaN)."""
     if pd.isna(val):
         return ""
     f = float(val)
@@ -24,7 +26,7 @@ def fmt_number(val):
     return str(f)
 
 if uploaded_file:
-    # Les Excel
+    # Les Excel (krever openpyxl i requirements.txt)
     df = pd.read_excel(uploaded_file, engine="openpyxl")
 
     required_cols = ["Betegnelse", "Materialkorttekst", "Målkvantum", "KE.1"]
@@ -35,25 +37,30 @@ if uploaded_file:
 
     # Fraksjon etter regelen din
     df["Fraksjon"] = df.apply(
-        lambda x: x["Materialkorttekst"] if str(x["Betegnelse"]) == "Kranbil Isekk - Avfallstype" else x["Betegnelse"],
-        axis=1
+        lambda x: x["Materialkorttekst"]
+        if str(x["Betegnelse"]) == "Kranbil Isekk - Avfallstype"
+        else x["Betegnelse"],
+        axis=1,
     )
 
     # Rens tall + enhet
-    df["Målkvantum"] = pd.to_numeric(df["Målkvantum"], errors="coerce")  # ikke fillna(0) her!
+    # Viktig: ikke fillna(0) her – vi vil beholde "ingen verdi" som NaN
+    df["Målkvantum"] = pd.to_numeric(df["Målkvantum"], errors="coerce")
     df["KE.1"] = df["KE.1"].map(clean_unit)
     df = df[df["KE.1"].notna()].copy()
 
-    # Enhetsrekkefølge (KG først)
+    # Enhetsrekkefølge (KG først, deretter alfabetisk på resten)
     units_found = sorted(df["KE.1"].unique().tolist())
-    units_order = (["KG"] if "KG" in units_found else []) + [u for u in units_found if u != "KG"]
+    units_order = (["KG"] if "KG" in units_found else []) + [
+        u for u in units_found if u != "KG"
+    ]
 
     # Pivot 1: summerte verdier
     pivot_vals = df.pivot_table(
         index="Fraksjon",
         columns="KE.1",
         values="Målkvantum",
-        aggfunc="sum"
+        aggfunc="sum",
     )
 
     # Pivot 2: sjekk om det fantes noen faktiske verdier (ikke bare tomt)
@@ -61,12 +68,13 @@ if uploaded_file:
         index="Fraksjon",
         columns="KE.1",
         values="Målkvantum",
-        aggfunc=lambda s: s.notna().any()
+        aggfunc=lambda s: s.notna().any(),
     )
 
     # Ekstra sikring mot rare kolonner
     safe_cols = [
-        c for c in pivot_vals.columns
+        c
+        for c in pivot_vals.columns
         if (pd.notna(c) and str(c).strip() and str(c).strip().upper() not in BAD_UNIT_LABELS)
     ]
     pivot_vals = pivot_vals.loc[:, safe_cols]
@@ -112,11 +120,32 @@ if uploaded_file:
     if disp.columns[0] != "Fraksjon":
         disp = disp.rename(columns={disp.columns[0]: "Fraksjon"})
 
+    # Litt CSS for å få tabellen bred
+    st.markdown(
+        """
+        <style>
+        table {
+            width: 100% !important;
+        }
+        th, td {
+            padding: 4px 8px;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
     # Style Fraksjon-kolonnen fet og litt større
     styled = (
         disp.style
         .set_properties(subset=["Fraksjon"], **{"font-weight": "bold", "color": "black", "font-size": "15px"})
         .set_properties(**{"font-size": "14px"})
+        .set_table_styles(
+            [
+                {"selector": "table", "props": [("width", "100%")]},
+                {"selector": "th", "props": [("text-align", "left")]}
+            ]
+        )
     )
 
     st.subheader("Resultat")
@@ -134,7 +163,7 @@ if uploaded_file:
         "Last ned som Excel",
         output.getvalue(),
         file_name="fraksjonsoversikt.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
 
     # Personvern
