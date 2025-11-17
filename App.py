@@ -5,7 +5,10 @@ from io import BytesIO
 st.set_page_config(page_title="Fraksjonsoversikt", layout="wide")
 st.title("Fraksjonsoversikt")
 
-uploaded_file = st.file_uploader("Last opp Excel-fil", type=["xlsx"])
+# Tillat flere filer
+uploaded_files = st.file_uploader(
+    "Last opp en eller flere Excel-filer", type=["xlsx"], accept_multiple_files=True
+)
 
 BAD_UNIT_LABELS = {"", "NAN", "NA", "NONE", "NULL", "TOTAL", "SUM"}
 
@@ -25,14 +28,44 @@ def fmt_number(val):
         return str(int(f))
     return str(f)
 
-if uploaded_file:
-    # Les Excel (krever openpyxl i requirements.txt)
-    df = pd.read_excel(uploaded_file, engine="openpyxl")
+if uploaded_files:
+    dfs = []
+    feil_filer = []
+
+    # Les alle filer og slå sammen
+    for uf in uploaded_files:
+        try:
+            tmp = pd.read_excel(uf, engine="openpyxl")
+            required_cols = ["Betegnelse", "Materialkorttekst", "Målkvantum", "KE.1"]
+            missing = [c for c in required_cols if c not in tmp.columns]
+            if missing:
+                feil_filer.append(f"{uf.name} (mangler kolonner: {missing})")
+                continue
+            tmp["Kildefil"] = uf.name  # hvis du vil vite hvor radene kom fra
+            dfs.append(tmp)
+        except Exception as e:
+            feil_filer.append(f"{uf.name} (feil ved lesing: {e})")
+
+    if not dfs:
+        st.error("Ingen av filene kunne brukes. Sjekk at de har riktige kolonner.")
+        if feil_filer:
+            st.write("Detaljer:")
+            for msg in feil_filer:
+                st.write("-", msg)
+        st.stop()
+
+    if feil_filer:
+        st.warning("Noen filer ble hoppet over:")
+        for msg in feil_filer:
+            st.write("-", msg)
+
+    # Slå sammen alle gyldige filer
+    df = pd.concat(dfs, ignore_index=True)
 
     required_cols = ["Betegnelse", "Materialkorttekst", "Målkvantum", "KE.1"]
     missing = [c for c in required_cols if c not in df.columns]
     if missing:
-        st.error(f"Mangler kolonner: {missing}")
+        st.error(f"Mangler kolonner i samlet datasett: {missing}")
         st.stop()
 
     # Fraksjon etter regelen din
@@ -48,6 +81,10 @@ if uploaded_file:
     df["Målkvantum"] = pd.to_numeric(df["Målkvantum"], errors="coerce")
     df["KE.1"] = df["KE.1"].map(clean_unit)
     df = df[df["KE.1"].notna()].copy()
+
+    if df.empty:
+        st.error("Ingen gyldige rader igjen etter rensing av enheter (KE.1).")
+        st.stop()
 
     # Enhetsrekkefølge (KG først, deretter alfabetisk på resten)
     units_found = sorted(df["KE.1"].unique().tolist())
@@ -148,7 +185,7 @@ if uploaded_file:
         )
     )
 
-    st.subheader("Resultat")
+    st.subheader("Resultat (alle filer samlet)")
     st.write(styled.to_html(), unsafe_allow_html=True)
 
     # ---------- EXCEL-NEDLASTING ----------
@@ -162,11 +199,11 @@ if uploaded_file:
     st.download_button(
         "Last ned som Excel",
         output.getvalue(),
-        file_name="fraksjonsoversikt.xlsx",
+        file_name="fraksjonsoversikt_samlet.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
 
     # Personvern
     st.caption("Personvern: Opplastede filer behandles i minnet i din økt og lagres ikke.")
 else:
-    st.info("Last opp en Excel-fil for å starte.")
+    st.info("Last opp en eller flere Excel-filer for å starte.")
