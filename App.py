@@ -3,7 +3,7 @@ import streamlit as st
 from io import BytesIO
 
 st.set_page_config(page_title="Fraksjonsoversikt - Made By Teo", layout="wide")
-st.title("Fraksjonsoversikt")
+st.title("Fraksjonsoversikt - Made By Teo")
 
 # Tillat flere filer
 uploaded_files = st.file_uploader(
