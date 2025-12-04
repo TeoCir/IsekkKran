@@ -2,7 +2,7 @@ import pandas as pd
 import streamlit as st
 from io import BytesIO
 
-st.set_page_config(page_title="Fraksjonsoversikt", layout="wide")
+st.set_page_config(page_title="Fraksjonsoversikt - Made By Teo", layout="wide")
 st.title("Fraksjonsoversikt")
 
 # Tillat flere filer
