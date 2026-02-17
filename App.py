@@ -7,7 +7,7 @@ st.title("Fraksjonsoversikt - Made By Teo")
 
 # Tillat flere filer
 uploaded_files = st.file_uploader(
-    "Last opp en eller flere Excel-filer", type=["xlsx"], accept_multiple_files=True
+    "Last opp en eller flere Excel-filer / Husk å fjern SD Dokument etter bruk!!!", type=["xlsx"], accept_multiple_files=True
 )
 
 BAD_UNIT_LABELS = {"", "NAN", "NA", "NONE", "NULL", "TOTAL", "SUM"}
